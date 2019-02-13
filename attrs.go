@@ -29,8 +29,8 @@ func (s AttrSet) String() string {
 	return sb.String()
 }
 
-// Contains returns true if s contains all elements of other.
-//    e.g. other is a subset of s
+// Contains returns true if this AttrSet contains all elements of other.
+// (e.g. other is a subset of this)
 func (s AttrSet) Contains(other AttrSet) bool {
 	chk := make(map[Attr]struct{})
 	for _, x := range s {
@@ -44,7 +44,7 @@ func (s AttrSet) Contains(other AttrSet) bool {
 	return true
 }
 
-// Add an attribute to the attribute set if not already present.
+// Add an attribute to this attribute set if not already present.
 func (s *AttrSet) Add(a Attr) {
 	for _, x := range *s {
 		if x == a {
@@ -54,7 +54,8 @@ func (s *AttrSet) Add(a Attr) {
 	*s = append(*s, a)
 }
 
-// AddAll efficiently adds all attributes in the other sets if not already present.
+// AddAll adds all attributes in the other sets if not already present.
+// Somewhat more efficient for large additions than Add().
 func (s *AttrSet) AddAll(others ...AttrSet) {
 	chk := make(map[Attr]struct{})
 	for _, x := range *s {
@@ -70,7 +71,7 @@ func (s *AttrSet) AddAll(others ...AttrSet) {
 	}
 }
 
-// Remove an attribute from the attribute set if it is present.
+// Remove an attribute from this attribute set if it is present.
 func (s *AttrSet) Remove(a Attr) {
 	for i, x := range *s {
 		if x == a {
@@ -91,7 +92,7 @@ func (s *AttrSet) Remove(a Attr) {
 	}
 }
 
-// Union this and the other attribute sets and return a new AttrSet.
+// Union of this and the other attribute sets, returned as a new AttrSet.
 func (s AttrSet) Union(others ...AttrSet) AttrSet {
 	// not the most efficient...
 	var res AttrSet
@@ -106,28 +107,32 @@ func (s AttrSet) Union(others ...AttrSet) AttrSet {
 	return res
 }
 
-// Intersection of this and the other attribute sets and return a new AttrSet.
+// Intersection of this and the other attribute sets, returned as a new AttrSet.
 func (s AttrSet) Intersection(others ...AttrSet) AttrSet {
 	// not the most efficient...
-	inter := make(map[Attr]struct{})
+	inter := make(map[Attr]int)
 	for _, x := range s {
-		inter[x] = struct{}{}
+		inter[x] = 1
 	}
 	var res AttrSet
 	for _, other := range others {
 		for _, x := range other {
-			if _, ok := inter[x]; ok {
-				res.Add(x)
-			} else {
-				inter[x] = struct{}{}
+			if n, ok := inter[x]; ok {
+				inter[x] = n + 1
 			}
+		}
+	}
+	n := len(others) + 1
+	for x, c := range inter {
+		if c == n {
+			res.Add(x)
 		}
 	}
 	return res
 }
 
 // Difference removes all the elements of the other attribute sets from this
-// AttrSet and return a new AttrSet of the remaining attributes.
+// AttrSet and returns a new AttrSet with the remaining attributes.
 func (s AttrSet) Difference(others ...AttrSet) AttrSet {
 	// not the most efficient...
 	inter := make(map[Attr]struct{})
