@@ -2,6 +2,9 @@ package funcdep
 
 import "strings"
 
+// AttrSep is the attribute separator.
+var AttrSep = ","
+
 // Attr represents an attribute in a functional dependency.
 type Attr string
 
@@ -13,7 +16,7 @@ func (s AttrSet) String() string {
 	sb := strings.Builder{}
 	for i, a := range s {
 		if i > 0 {
-			sb.WriteByte(',')
+			sb.WriteString(AttrSep)
 		}
 		sb.WriteString(string(a))
 	}

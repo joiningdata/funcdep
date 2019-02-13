@@ -42,11 +42,11 @@ func FromString(fdesc string) *FuncDep {
 		panic("too many arrows in functional dependency")
 	}
 	fd := &FuncDep{}
-	for _, s := range strings.Split(parts[0], ",") {
+	for _, s := range strings.Split(parts[0], AttrSep) {
 		a := Attr(strings.TrimSpace(s))
 		fd.Left = append(fd.Left, a)
 	}
-	for _, s := range strings.Split(parts[1], ",") {
+	for _, s := range strings.Split(parts[1], AttrSep) {
 		a := Attr(strings.TrimSpace(s))
 		fd.Right = append(fd.Right, a)
 	}
