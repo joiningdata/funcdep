@@ -2,6 +2,7 @@
 package funcdep
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 )
@@ -27,19 +28,13 @@ var cutArrows = regexp.MustCompile("[-=~]*[>→⇒⇾]+")
 // FromString converts a text/string description of a functional dependency into
 // a parsed FuncDep structure. It accepts multiple forms of arrows in the
 // representation (as long as they point to the right).
-func FromString(fdesc string) *FuncDep {
+func FromString(fdesc string) (*FuncDep, error) {
 	parts := cutArrows.Split(fdesc, -1)
 	if len(parts) == 1 {
-		// instead of panicing lets just return a trivial FD
-		// e.g. "X" becomes X --> X
-		a := Attr(strings.TrimSpace(parts[0]))
-		return &FuncDep{
-			Left:  AttrSet([]Attr{a}),
-			Right: AttrSet([]Attr{a}),
-		}
+		return nil, fmt.Errorf("no arrow found in functional dependency")
 	}
 	if len(parts) != 2 {
-		panic("too many arrows in functional dependency")
+		return nil, fmt.Errorf("too many arrows in functional dependency")
 	}
 	fd := &FuncDep{}
 	for _, s := range strings.Split(parts[0], AttrSep) {
@@ -50,5 +45,5 @@ func FromString(fdesc string) *FuncDep {
 		a := Attr(strings.TrimSpace(s))
 		fd.Right = append(fd.Right, a)
 	}
-	return fd
+	return fd, nil
 }
