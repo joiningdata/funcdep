@@ -40,8 +40,9 @@ func RelationFromString(desc string) (*Relation, error) {
 	head = head[pidx+1 : len(head)-1]
 	for _, s := range strings.Split(head, AttrSep) {
 		a := Attr(strings.TrimSpace(s))
-		r.Attrs = append(r.Attrs, a)
+		r.Attrs.Add(a)
 	}
+
 	for _, line := range lines[1:] {
 		line = strings.TrimSpace(line)
 		if line == "" {
@@ -52,6 +53,21 @@ func RelationFromString(desc string) (*Relation, error) {
 			return nil, err
 		}
 		r.FuncDeps = append(r.FuncDeps, fd)
+	}
+
+	var problems AttrSet
+	// validate that FDs refer to Attributes in Relation only
+	for _, fd := range r.FuncDeps {
+		a := fd.Left.Union(fd.Right)
+		remAttr := a.Difference(r.Attrs)
+		if len(remAttr) != 0 {
+			problems.AddAll(remAttr)
+		}
+	}
+
+	if len(problems) > 0 {
+		return nil, fmt.Errorf("relation has %d attributes (%v). FD has %d unknown attributes (%v)",
+			len(r.Attrs), r.Attrs, len(problems), problems)
 	}
 
 	return r, nil

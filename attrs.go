@@ -1,6 +1,9 @@
 package funcdep
 
-import "strings"
+import (
+	"sort"
+	"strings"
+)
 
 // AttrSep is the attribute separator.
 var AttrSep = ","
@@ -13,6 +16,9 @@ type AttrSet []Attr
 
 // String representation of the attribute set (joined by commas).
 func (s AttrSet) String() string {
+	sort.Slice(s, func(i, j int) bool {
+		return s[i] < s[j]
+	})
 	sb := strings.Builder{}
 	for i, a := range s {
 		if i > 0 {

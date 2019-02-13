@@ -13,8 +13,12 @@ import (
 
 func main() {
 	nosep := flag.Bool("n", false, "use single-character attribute names (no separator)")
+	delim := flag.String("d", ",", "use `separator` between attribute names")
 	flag.Parse()
 
+	if *delim != "" {
+		funcdep.AttrSep = *delim
+	}
 	if *nosep {
 		funcdep.AttrSep = ""
 	}
