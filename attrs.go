@@ -23,6 +23,21 @@ func (s AttrSet) String() string {
 	return sb.String()
 }
 
+// Contains returns true if s contains all elements of other.
+//    e.g. other is a subset of s
+func (s AttrSet) Contains(other AttrSet) bool {
+	chk := make(map[Attr]struct{})
+	for _, x := range s {
+		chk[x] = struct{}{}
+	}
+	for _, x := range other {
+		if _, ok := chk[x]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
 // Add an attribute to the attribute set if not already present.
 func (s *AttrSet) Add(a Attr) {
 	for _, x := range *s {
