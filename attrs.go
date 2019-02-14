@@ -45,13 +45,15 @@ func (s AttrSet) Contains(other AttrSet) bool {
 }
 
 // Add an attribute to this attribute set if not already present.
-func (s *AttrSet) Add(a Attr) {
+// Returns true if the element was added.
+func (s *AttrSet) Add(a Attr) bool {
 	for _, x := range *s {
 		if x == a {
-			return
+			return false
 		}
 	}
 	*s = append(*s, a)
+	return true
 }
 
 // AddAll adds all attributes in the other sets if not already present.
@@ -72,13 +74,14 @@ func (s *AttrSet) AddAll(others ...AttrSet) {
 }
 
 // Remove an attribute from this attribute set if it is present.
-func (s *AttrSet) Remove(a Attr) {
+// Returns true if the element was removed.
+func (s *AttrSet) Remove(a Attr) bool {
 	for i, x := range *s {
 		if x == a {
 			xs := []Attr(*s)
 			if len(xs) == 1 {
 				*s = AttrSet(xs[:0])
-				return
+				return true
 			}
 			j := len(xs) - 1
 			if i != j {
@@ -87,9 +90,10 @@ func (s *AttrSet) Remove(a Attr) {
 			}
 			// remove the last element
 			*s = AttrSet(xs[:j])
-			return
+			return true
 		}
 	}
+	return false
 }
 
 // Union of this and the other attribute sets, returned as a new AttrSet.

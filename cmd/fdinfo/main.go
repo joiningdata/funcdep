@@ -59,4 +59,10 @@ func main() {
 	for _, ck := range cks {
 		fmt.Println("   ", ck)
 	}
+
+	fmt.Println("Candidate Keys (Brute-Force):")
+	cks = rel.CandidateKeysBF()
+	for _, ck := range cks {
+		fmt.Println("   ", ck)
+	}
 }

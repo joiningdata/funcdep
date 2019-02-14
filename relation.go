@@ -2,6 +2,7 @@ package funcdep
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -138,4 +139,97 @@ func (r *Relation) CandidateKeysAlt() []AttrSet {
 		}
 	}
 	return ckeys
+}
+
+// CandidateKeysBF enumerates all possible keys for the relation using a
+// brute-force approach. To reduce number of results, candidate keys that
+// contain smaller candidate keys are removed from the result set.
+func (r *Relation) CandidateKeysBF() []AttrSet {
+	return r.filterContainingKeys(r.enumerateCandidateKeys())
+}
+
+func (r *Relation) filterContainingKeys(candidates []AttrSet) []AttrSet {
+	// removes candidate keys that fully contain smaller
+	// candidate keys recursively.
+
+	if len(candidates) <= 1 {
+		return candidates
+	}
+
+	// sort candidates so the smallest is at the end
+	sort.Slice(candidates, func(i, j int) bool {
+		return len(candidates[i]) > len(candidates[j])
+	})
+
+	var result []AttrSet
+	for len(candidates) > 0 {
+		// add the last candidate key to the result
+		n := len(candidates) - 1
+		x := candidates[n]
+		result = append(result, x)
+
+		// to remove containing keys, copy keys that don't
+		// contain X forward, then truncate the list
+		j := 0
+		for i := 0; i < n; i++ {
+			if !candidates[i].Contains(x) {
+				if j != i {
+					candidates[j] = candidates[i]
+				}
+				j++
+			}
+		}
+		candidates = candidates[:j]
+	}
+	return result
+}
+
+func (r *Relation) enumerateCandidateKeys() []AttrSet {
+	var result []AttrSet
+
+	clos := r.Closures()
+	hits := make(map[string]struct{})
+
+	check := func(a AttrSet) {
+		if _, ok := hits[a.String()]; ok {
+			return
+		}
+		var right AttrSet
+		right.AddAll(a)
+		last := 0
+		n := len(right)
+		for n != last {
+			for _, c := range clos {
+				if right.Contains(c.Left) {
+					right.AddAll(c.Right)
+				}
+			}
+			last = n
+			n = len(right)
+		}
+		if len(right) == len(r.Attrs) {
+			var x AttrSet
+			x.AddAll(a)
+			result = append(result, x)
+		}
+		hits[a.String()] = struct{}{}
+	}
+
+	r.recurBF(nil, len(r.Attrs), check)
+	return result
+}
+
+func (r *Relation) recurBF(x AttrSet, nremain int, check func(AttrSet)) {
+	var z AttrSet
+	z.AddAll(x)
+	for _, a1 := range r.Attrs {
+		if z.Add(a1) {
+			check(z)
+			if nremain > 1 {
+				r.recurBF(z, nremain-1, check)
+			}
+
+			z.Remove(a1)
+		}
+	}
 }
