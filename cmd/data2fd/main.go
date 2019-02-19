@@ -81,18 +81,41 @@ func ReadData(filename string) (*DataSet, error) {
 func (ds *DataSet) Analyze() {
 	// TODO: check more than just pairs of columns
 
+	chkagainst := func(ii int, jj []int) {
+		jx := len(jj)
+		mx := ii + 1
+		if jx > 0 {
+			mx = jj[jx-1]
+		}
+		jj = append(jj, mx)
+		for j := range ds.header {
+			if _, skip := ds.skiplist[j]; skip {
+				continue
+			}
+			if j >= mx {
+				jj[jx] = j
+				ds.CheckColumnPair(ii, jj)
+			}
+		}
+	}
+
 	// for every (ordered) pair of columns,
 	// examine dependency between values
 	for i := range ds.header {
 		if _, skip := ds.skiplist[i]; skip {
 			continue
 		}
+		// 1:1 pairings
+		chkagainst(i, nil)
+
 		for j := range ds.header {
 			if _, skip := ds.skiplist[j]; skip {
 				continue
 			}
 			if j > i {
-				ds.CheckColumnPair(i, j)
+				// 1:2 pairings
+				chkagainst(i, []int{j})
+				//ds.CheckColumnPair(i, []int{j})
 			}
 		}
 	}
@@ -110,7 +133,10 @@ func (ds *DataSet) Analyze() {
 		if xfd, ok := newFDs[key]; ok {
 			xfd.Right.AddAll(fd.Right)
 		} else {
-			newFDs[key] = fd
+			nfd := &funcdep.FuncDep{}
+			nfd.Left.AddAll(fd.Left)
+			nfd.Right.AddAll(fd.Right)
+			newFDs[key] = nfd
 		}
 	}
 	for _, fd := range newFDs {
@@ -118,10 +144,61 @@ func (ds *DataSet) Analyze() {
 	}
 }
 
+// Simplify the functional dependencies.
+func (ds *DataSet) Simplify() {
+	// first, do any right-sides contain the closure of a different FD?
+	// e.g.    GeneID --> *GeneSymbol*
+	//         SNPID --> GeneID,*GeneSymbol*
+	//
+	// becomes SNPID --> GeneID
+	toremove := make(map[int]struct{})
+	for i, fd1 := range ds.rel.FuncDeps {
+		right := fd1.Right
+		for _, fd2 := range ds.rel.FuncDeps {
+			clo := fd2.Left.Union(fd2.Right)
+			if right.Contains(clo) {
+				for _, a := range fd2.Right {
+					right.Remove(a)
+				}
+			}
+		}
+		if len(right) == 0 {
+			toremove[i] = struct{}{}
+		}
+		fd1.Right = right
+	}
+
+	// might have some duplicates after the above - remove them
+	for i, fd1 := range ds.rel.FuncDeps {
+		if len(fd1.Right) == 0 {
+			continue
+		}
+		for j, fd2 := range ds.rel.FuncDeps {
+			if i == j {
+				continue
+			}
+			if fd2.Left.Contains(fd1.Left) && fd2.Right.Contains(fd1.Right) {
+				toremove[j] = struct{}{}
+				break
+			}
+		}
+	}
+
+	// TODO: more stuff here
+
+	newFDs := []*funcdep.FuncDep{}
+	for i, fd := range ds.rel.FuncDeps {
+		if _, ok := toremove[i]; !ok {
+			newFDs = append(newFDs, fd)
+		}
+	}
+	ds.rel.FuncDeps = newFDs
+}
+
 // CheckColumnPair counts data co-occurance for the two columns given.
 // If either column (or both) functionally determines the other, then
 // the relationship is recorded.
-func (ds *DataSet) CheckColumnPair(i, j int) {
+func (ds *DataSet) CheckColumnPair(i int, js []int) {
 	// value_j => set of value_i
 	deps := make(map[string]map[string]struct{})
 
@@ -132,7 +209,11 @@ func (ds *DataSet) CheckColumnPair(i, j int) {
 	// observed for each pair
 	for _, row := range ds.data {
 		vi := row[i]
-		vj := row[j]
+		vjs := []string{}
+		for _, j := range js {
+			vjs = append(vjs, row[j])
+		}
+		vj := strings.Join(vjs, "\t")
 
 		if _, ok := deps[vj]; !ok {
 			deps[vj] = map[string]struct{}{vi: struct{}{}}
@@ -157,7 +238,9 @@ func (ds *DataSet) CheckColumnPair(i, j int) {
 	}
 	if uniqueValues {
 		fd := &funcdep.FuncDep{}
-		fd.Left.Add(funcdep.Attr(ds.header[j]))
+		for _, j := range js {
+			fd.Left.Add(funcdep.Attr(ds.header[j]))
+		}
 		fd.Right.Add(funcdep.Attr(ds.header[i]))
 		ds.rel.FuncDeps = append(ds.rel.FuncDeps, fd)
 	}
@@ -176,7 +259,9 @@ func (ds *DataSet) CheckColumnPair(i, j int) {
 	if uniqueValues {
 		fd := &funcdep.FuncDep{}
 		fd.Left.Add(funcdep.Attr(ds.header[i]))
-		fd.Right.Add(funcdep.Attr(ds.header[j]))
+		for _, j := range js {
+			fd.Right.Add(funcdep.Attr(ds.header[j]))
+		}
 		ds.rel.FuncDeps = append(ds.rel.FuncDeps, fd)
 	}
 
@@ -209,6 +294,10 @@ func main() {
 		}
 	}
 	ds.Analyze()
+	fmt.Println("--- Pre-simplification")
+	fmt.Println(ds.rel.String())
+	ds.Simplify()
+	fmt.Println("--- Post-simplification")
 
 	fmt.Println(ds.rel.String())
 
