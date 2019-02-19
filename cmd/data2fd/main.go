@@ -3,9 +3,12 @@ package main
 
 import (
 	"bufio"
+	"compress/gzip"
 	"encoding/csv"
 	"flag"
 	"fmt"
+	"io"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"strings"
@@ -23,17 +26,32 @@ type DataSet struct {
 	rel *funcdep.Relation
 }
 
+// Sample a proportion of data records.
+func (ds *DataSet) Sample(rate float64) {
+	n := int(rate * float64(len(ds.data)))
+	rand.Shuffle(len(ds.data), func(i, j int) {
+		ds.data[i], ds.data[j] = ds.data[j], ds.data[i]
+	})
+	ds.data = ds.data[:n]
+}
+
 // ReadData loads a DataSet, tracking the header along with the rows of data.
 // Supports both CSV and tab-delimited data files with a single-line header.
 func ReadData(filename string) (*DataSet, error) {
-	// TODO: support gzip transparently
-	// TODO: random sampling for large data files
-
 	f, err := os.Open(filename)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
+
+	// support gzip transparently
+	r := io.Reader(f)
+	if strings.HasSuffix(filename, "gz") {
+		r, err = gzip.NewReader(f)
+		if err != nil {
+			r = f
+		}
+	}
 
 	ext := filepath.Ext(filename)
 	relname := strings.TrimSuffix(filepath.Base(filename), ext)
@@ -45,7 +63,7 @@ func ReadData(filename string) (*DataSet, error) {
 	}
 
 	if strings.ToLower(ext) == ".csv" {
-		rdr := csv.NewReader(f)
+		rdr := csv.NewReader(r)
 		data, err := rdr.ReadAll()
 		if err != nil {
 			return nil, err
@@ -54,7 +72,7 @@ func ReadData(filename string) (*DataSet, error) {
 		ds.data = data[1:]
 	} else {
 		haveHeader := false
-		s := bufio.NewScanner(f)
+		s := bufio.NewScanner(r)
 		for s.Scan() {
 			row := strings.Split(s.Text(), "\t")
 			if !haveHeader {
@@ -269,6 +287,7 @@ func (ds *DataSet) CheckColumnPair(i int, js []int) {
 }
 
 func main() {
+	sampleRate := flag.Float64("r", 1.0, "`ratio` of rows to sample for testing (0.0-1.0)")
 	excludeList := flag.String("x", "", "comma-separated list of `attributes` to exclude")
 	flag.Parse()
 
@@ -292,6 +311,11 @@ func main() {
 				}
 			}
 		}
+	}
+	fmt.Printf("Loaded %d rows", len(ds.data))
+	if *sampleRate > 0.0 && *sampleRate < 1.0 {
+		ds.Sample(*sampleRate)
+		fmt.Printf("  Random sample using %d rows", len(ds.data))
 	}
 	ds.Analyze()
 	fmt.Println("--- Pre-simplification")
